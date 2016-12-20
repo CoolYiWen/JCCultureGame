@@ -1,45 +1,46 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-public class PlayerController : MonoBehaviour {
+public class PlayerController : SingletonUnity<PlayerController> {
 
 
-    [SerializeField] private float m_MaxSpeed = 10f;                    // The fastest the player can travel in the x axis.
-    [SerializeField] private float m_JumpForce = 400f;                  // Amount of force added when the player jumps.
+    [SerializeField] private float m_MaxSpeed = 200f;                    // The fastest the player can travel in the x axis.
+    [SerializeField] private float m_JumpForce = 10000f;                  // Amount of force added when the player jumps.
     [SerializeField] private bool m_AirControl = false;                 // Whether or not a player can steer while jumping;
     [SerializeField] private LayerMask m_WhatIsGround;                  // A mask determining what is ground to the character
 
-    private Transform GroundCelling;
-    public  float k_GroundedRadius = .2f; // Radius of the overlap circle to determine if grounded
     private bool m_Grounded;            // Whether or not the player is grounded.
-    const float k_CeilingRadius = .01f; // Radius of the overlap circle to determine if the player can stand up
     private Animator m_Anim;            // Reference to the player's animator component.
     private Rigidbody2D m_Rigidbody2D;
     private bool m_FacingRight = true;  // For determining which way the player is currently facing.
 
-    private void Awake()
+    public bool IsOnShip = false;
+    public Ship ShipController;
+
+    void Awake()
     {
-        // Setting up references.
-        GroundCelling = transform.Find ("GroundCelling");
         m_Anim = GetComponent<Animator>();
         m_Rigidbody2D = GetComponent<Rigidbody2D>();
     }
 
-
-    private void FixedUpdate()
+    void Start()
     {
-        m_Grounded = false;
-
-        // The player is grounded if a circlecast to the groundcheck position hits anything designated as ground
-        // This can be done using layers instead but Sample Assets will not overwrite your project settings.
-        Collider2D[] colliders = Physics2D.OverlapCircleAll(GroundCelling.position, k_GroundedRadius, m_WhatIsGround);
-        for (int i = 0; i < colliders.Length; i++)
+        /*int buildingId = GameManager.Instance.BuildingId;
+        if(buildingId != 0)
         {
-            if (colliders[i].gameObject != gameObject)
-                m_Grounded = true;
-        }
+            Vector3 pos = GameObject.Find ("Building" + buildingId).transform.position;
+            gameObject.transform.position = new Vector3 (pos.x, pos.y - 50, gameObject.transform.position.z);
+        }*/
+        m_Anim.SetInteger (Constant.Par_State, 0);
     }
 
+    void OnCollisionEnter2D(Collision2D coll) 
+    {
+        if(coll.gameObject.tag == Constant.Tag_Ground)
+        {
+            m_Grounded = true;
+        }
+    }
 
     public void Move(float move, bool jump)
     {
@@ -53,19 +54,30 @@ public class PlayerController : MonoBehaviour {
             // If the input is moving the player right and the player is facing left...
             if (move > 0 && !m_FacingRight)
             {
-                // ... flip the player.
                 Flip();
             }
             // Otherwise if the input is moving the player left and the player is facing right...
             else if (move < 0 && m_FacingRight)
             {
-                // ... flip the player.
                 Flip();
             }
         }
+
+        if(m_Grounded && (Mathf.Abs(m_Rigidbody2D.velocity.x) > 0.01 || Mathf.Abs(move - 0) > 0.01))
+        {
+            m_Anim.SetInteger (Constant.Par_State, 1);
+        }
+
+
+        if(m_Grounded && Mathf.Abs(move - 0) < 0.01 && m_Anim.GetInteger(Constant.Par_State) != 0)
+        {
+            m_Anim.SetInteger (Constant.Par_State, 0);
+        }
+
         // If the player should jump...
         if (m_Grounded && jump)
         {
+            m_Anim.SetInteger (Constant.Par_State, 2);
             // Add a vertical force to the player.
             m_Grounded = false;
             m_Rigidbody2D.AddForce(new Vector2(0f, m_JumpForce));
@@ -73,6 +85,35 @@ public class PlayerController : MonoBehaviour {
 
     }
 
+    public void MoveOnShip(float move, bool jump)
+    {
+        if(m_Anim.GetInteger(Constant.Par_State) != 0)
+        {
+            m_Anim.SetInteger (Constant.Par_State, 0);
+        }
+
+        // Move the character
+        ShipController.MoveShip (move);
+        gameObject.transform.position = ShipController.GetShipPosition ();
+
+        // If the input is moving the player right and the player is facing left...
+        if (move > 0 && !m_FacingRight)
+        {
+            Flip();
+        }
+        // Otherwise if the input is moving the player left and the player is facing right...
+        else if (move < 0 && m_FacingRight)
+        {
+            Flip();
+        }
+
+        if(jump)
+        {
+            IsOnShip = false;
+            ShipController = null;
+            Move (move, jump);
+        }
+    }
 
     private void Flip()
     {
@@ -83,12 +124,12 @@ public class PlayerController : MonoBehaviour {
         Vector3 theScale = transform.localScale;
         theScale.x *= -1;
         transform.localScale = theScale;
+
+        if(IsOnShip)
+        {
+            ShipController.SetFacingDir(theScale);
+        }
     }
 
 
-    void LateUpdate()
-    {
-        Move (ETCInput.GetAxis ("Horizontal"), ETCInput.GetButtonDown("Jump"));
-
-    }
 }
