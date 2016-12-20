@@ -13,15 +13,20 @@ public class LoadingView : MonoBehaviour
 
     void Update()
     {
-        /*time += Time.fixedDeltaTime;
+		/*time += Time.fixedDeltaTime;
 
         if(time > 1 && !isLoading)
         {
-            isLoading = true;*/
+            isLoading = true;
             StartCoroutine (loadScene ());
-        /* }*/
+        }*/
     }
 
+
+	void Start()
+	{
+		StartCoroutine (loadScene ());
+	}
 
     IEnumerator loadScene()
     {
